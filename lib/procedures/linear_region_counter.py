@@ -1,8 +1,11 @@
+import os
+import gzip 
+import pickle
 import os.path as osp
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.utils.data
+import torch.utils.data as data_utils
 import torchvision.transforms as transforms
 import torchvision.datasets as dset
 from pdb import set_trace as bp
@@ -24,6 +27,54 @@ class RandChannel(object):
         channel_choice = sorted(np.random.choice(list(range(channel)), size=self.num_channel, replace=False))
         return torch.index_select(img, 0, torch.Tensor(channel_choice).long())
 
+def load_ninapro(path, whichset):
+    data_str = 'ninapro_' + whichset + '.npy'
+    label_str = 'label_' + whichset + '.npy'
+
+    data = np.load(os.path.join(path, data_str),
+                             encoding="bytes", allow_pickle=True)
+    labels = np.load(os.path.join(path, label_str), encoding="bytes", allow_pickle=True)
+
+    data = np.transpose(data, (0, 2, 1))
+    data = data[:, None, :, :]
+    data = torch.from_numpy(data.astype(np.float32))
+    labels = torch.from_numpy(labels.astype(np.int64))
+
+    all_data = data_utils.TensorDataset(data, labels)
+    return all_data
+
+def load_scifar100_data(path, val_split=0.2, train=True):
+
+    data_file = os.path.join(path, 's2_cifar100.gz')
+    with gzip.open(data_file, 'rb') as f:
+        dataset = pickle.load(f)
+
+    train_data = torch.from_numpy(
+        dataset["train"]["images"][:, :, :, :].astype(np.float32))
+    train_labels = torch.from_numpy(
+        dataset["train"]["labels"].astype(np.int64))
+
+
+    all_train_dataset = data_utils.TensorDataset(train_data, train_labels)
+    print(len(all_train_dataset))
+    if val_split == 0.0 or not train:
+        val_dataset = None
+        train_dataset = all_train_dataset
+    else:
+        ntrain = int((1-val_split) * len(all_train_dataset))
+        train_dataset = data_utils.TensorDataset(train_data[:ntrain], train_labels[:ntrain])
+        val_dataset = data_utils.TensorDataset(train_data[ntrain:], train_labels[ntrain:])
+
+    print(len(train_dataset))
+    test_data = torch.from_numpy(
+        dataset["test"]["images"][:, :, :, :].astype(np.float32))
+    test_labels = torch.from_numpy(
+        dataset["test"]["labels"].astype(np.int64))
+
+    test_dataset = data_utils.TensorDataset(test_data, test_labels)
+
+    return train_dataset, val_dataset, test_dataset
+
 
 def get_datasets(name, root, input_size, cutout=-1):
     assert len(input_size) in [3, 4]
@@ -42,6 +93,8 @@ def get_datasets(name, root, input_size, cutout=-1):
     elif name.startswith('ImageNet16'):
         mean = [x / 255 for x in [122.68, 116.66, 104.01]]
         std  = [x / 255 for x in [63.22,  61.26 , 65.09]]
+    elif name == 'scifar100' or name == 'ninapro':
+        pass
     else:
         raise TypeError("Unknow dataset : {:}".format(name))
 
@@ -71,6 +124,8 @@ def get_datasets(name, root, input_size, cutout=-1):
         xlists.append(RandChannel(input_size[0]))
         train_transform = transforms.Compose(xlists)
         test_transform = transforms.Compose([transforms.Resize(40), transforms.CenterCrop(32), transforms.ToTensor(), normalize])
+    elif name == 'scifar100' or name == 'ninapro':
+        pass
     else:
         raise TypeError("Unknow dataset : {:}".format(name))
 
@@ -101,6 +156,20 @@ def get_datasets(name, root, input_size, cutout=-1):
         train_data = ImageNet16(root, True , train_transform, 200)
         test_data  = ImageNet16(root, False, test_transform , 200)
         assert len(train_data) == 254775 and len(test_data) == 10000
+    elif name == "ninapro":
+        #s3 = boto3.client("s3")
+        path = os.path.join(root, 'ninapro_data')
+        #os.makedirs(path, exist_ok=True)
+        #download_from_s3(s3_bucket, name, path)
+        train_data, _, test_data = load_ninapro_data(path, train=False)
+        assert len(train_data) == 3297 and len(test_data) == 659  
+    elif name == "scifar100":
+        #s3 = boto3.client("s3")
+        path = os.path.join(root, 'scifar100_data')
+        #os.makedirs(path, exist_ok=True)
+        #download_from_s3(s3_bucket, name, path)
+        train_data, _, test_data = load_scifar100_data(path, train=False)
+        assert len(train_data) == 50000 and len(test_data) == 10000 
     else: raise TypeError("Unknow dataset : {:}".format(name))
 
     class_num = Dataset2Class[name]
@@ -185,7 +254,7 @@ class Linear_Region_Collector:
                 self.sample_batch = sample_batch
             if self.data_path is not None:
                 self.train_data, _, class_num = get_datasets(self.dataset, self.data_path, self.input_size, -1)
-                self.train_loader = torch.utils.data.DataLoader(self.train_data, batch_size=self.input_size[0], num_workers=16, pin_memory=True, drop_last=True, shuffle=True)
+                self.train_loader = data_utils.DataLoader(self.train_data, batch_size=self.input_size[0], num_workers=16, pin_memory=True, drop_last=True, shuffle=True)
                 self.loader = iter(self.train_loader)
         if seed is not None and seed != self.seed:
             self.seed = seed
