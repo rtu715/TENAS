@@ -3,19 +3,21 @@ import time
 import argparse
 
 # TODO please configure TORCH_HOME and data_paths before running
-TORCH_HOME = "/ssd1/chenwy"  # Path that contains the nas-bench-201 database. If you only want to run on NASNET (i.e. DARTS) search space, then just leave it empty
+TORCH_HOME = ""  # Path that contains the nas-bench-201 database. If you only want to run on NASNET (i.e. DARTS) search space, then just leave it empty
 data_paths = {
-    "cifar10": "/ssd1/cifar.python",
-    "cifar100": "/ssd1/cifar.python",
-    "ImageNet16-120": "/ssd1/ImageNet16",
-    "imagenet-1k": "/ssd2/chenwy/imagenet_final",
+    "cifar10": "./cifar.python",
+    "cifar100": "./cifar.python",
+    "ImageNet16-120": "./ImageNet16",
+    "imagenet-1k": "./imagenet_final",
+    "ninapro": "./ninapro",
+    "scifar100": "./scifar100"
 }
 
 
 parser = argparse.ArgumentParser("TENAS_launch")
 parser.add_argument('--gpu', default=0, type=int, help='use gpu with cuda number')
 parser.add_argument('--space', default='nas-bench-201', type=str, choices=['nas-bench-201', 'darts'], help='which nas search space to use')
-parser.add_argument('--dataset', default='cifar100', type=str, choices=['cifar10', 'cifar100', 'ImageNet16-120', 'imagenet-1k'], help='Choose between cifar10/100/ImageNet16-120/imagenet-1k')
+parser.add_argument('--dataset', default='cifar100', type=str, choices=['cifar10', 'cifar100', 'ImageNet16-120', 'imagenet-1k', 'ninapro', 'scifar100'], help='Choose between cifar10/100/ImageNet16-120/imagenet-1k')
 parser.add_argument('--seed', default=0, type=int, help='manual seed')
 args = parser.parse_args()
 
@@ -42,6 +44,9 @@ elif args.space == "darts":
     elif args.dataset == "imagenet-1k":
         prune_number = 2
         batch_size = 24
+    else: 
+        prune_number = 3
+        batch_size = 16
 
 
 timestamp = "{:}".format(time.strftime('%h-%d-%C_%H-%M-%s', time.gmtime(time.time())))

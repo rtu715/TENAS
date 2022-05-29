@@ -346,10 +346,8 @@ def main(xargs):
     logger = prepare_logger(xargs)
     ###############
 
-    if xargs.dataset != 'imagenet-1k':
-        search_loader, train_loader, valid_loader = get_nas_search_loaders(train_data, valid_data, xargs.dataset, 'configs/', config.batch_size, xargs.workers)
-    else:
-        train_loader = torch.utils.data.DataLoader(train_data, batch_size=xargs.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
+
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=xargs.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
     logger.log('||||||| {:10s} ||||||| Train-Loader-Num={:}, batch size={:}'.format(xargs.dataset, len(train_loader), config.batch_size))
     logger.log('||||||| {:10s} ||||||| Config={:}'.format(xargs.dataset, config))
 
@@ -469,7 +467,7 @@ def main(xargs):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("TENAS")
     parser.add_argument('--data_path', type=str, help='Path to dataset')
-    parser.add_argument('--dataset', type=str, choices=['cifar10', 'cifar100', 'ImageNet16-120', 'imagenet-1k'], help='Choose between cifar10/100/ImageNet16-120/imagenet-1k')
+    parser.add_argument('--dataset', type=str, choices=['cifar10', 'cifar100', 'ImageNet16-120', 'imagenet-1k', 'ninapro', 'scifar100'], help='Choose between cifar10/100/ImageNet16-120/imagenet-1k')
     parser.add_argument('--search_space_name', type=str, default='nas-bench-201',  help='space of operator candidates: nas-bench-201 or darts.')
     parser.add_argument('--max_nodes', type=int, help='The maximum number of nodes.')
     parser.add_argument('--track_running_stats', type=int, choices=[0, 1], help='Whether use track_running_stats or not in the BN layer.')
