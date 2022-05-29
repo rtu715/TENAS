@@ -1,3 +1,4 @@
+import os
 import torch
 import os.path as osp
 import numpy as np
@@ -6,7 +7,10 @@ import torchvision.transforms as transforms
 from copy import deepcopy
 from PIL import Image
 import boto3
+import gzip 
+import pickle
 
+import torch.utils.data as data_utils
 from .DownsampledImageNet import ImageNet16
 from .SearchDatasetWrap import SearchDataset
 from config_utils import load_config
@@ -24,6 +28,7 @@ Dataset2Class = {'cifar10': 10,
                  'scifar100': 100
                  }
 
+s3_bucket = "pde-xd"
 
 class CUTOUT(object):
 
@@ -168,8 +173,7 @@ def get_datasets(name, root, cutout):
         mean = [x / 255 for x in [122.68, 116.66, 104.01]]
         std  = [x / 255 for x in [63.22,  61.26 , 65.09]]
     else:
-        raise TypeError("Unknow dataset : {:}".format(name))
-
+        pass
     # Data Argumentation
     if name == 'cifar10' or name == 'cifar100':
         lists = [transforms.RandomHorizontalFlip(), transforms.RandomCrop(32, padding=4), transforms.ToTensor(), transforms.Normalize(mean, std)]
