@@ -46,7 +46,7 @@ elif args.space == "darts":
         batch_size = 24
     else: 
         prune_number = 3
-        batch_size = 16
+        batch_size = 14
 
 
 timestamp = "{:}".format(time.strftime('%h-%d-%C_%H-%M-%s', time.gmtime(time.time())))

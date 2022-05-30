@@ -391,7 +391,7 @@ def main(xargs):
         alpha[:, :] = 0
 
     # TODO Linear_Region_Collector
-    lrc_model = Linear_Region_Collector(input_size=(1000, 1, 3, 3), sample_batch=3, dataset=xargs.dataset, data_path=xargs.data_path, seed=xargs.rand_seed)
+    lrc_model = Linear_Region_Collector(input_size=(100, 1, 3, 3), sample_batch=3, dataset=xargs.dataset, data_path=xargs.data_path, seed=xargs.rand_seed)
 
     # ### all params trainable (except train_bn) #########################
     flop, param = get_model_infos(network, xshape)

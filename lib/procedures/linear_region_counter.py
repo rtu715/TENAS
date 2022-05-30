@@ -27,6 +27,20 @@ class RandChannel(object):
         channel_choice = sorted(np.random.choice(list(range(channel)), size=self.num_channel, replace=False))
         return torch.index_select(img, 0, torch.Tensor(channel_choice).long())
 
+def load_ninapro_data(path, train=True):
+
+    trainset = load_ninapro(path, 'train')
+    valset = load_ninapro(path, 'val')
+    testset = load_ninapro(path, 'test')
+
+    if train:
+        return trainset, valset, testset
+
+    else:
+        trainset = data_utils.ConcatDataset([trainset, valset])
+
+    return trainset, None, testset
+
 def load_ninapro(path, whichset):
     data_str = 'ninapro_' + whichset + '.npy'
     label_str = 'label_' + whichset + '.npy'
@@ -50,7 +64,7 @@ def load_scifar100_data(path, val_split=0.2, train=True):
         dataset = pickle.load(f)
 
     train_data = torch.from_numpy(
-        dataset["train"]["images"][:, :, :, :].astype(np.float32))
+            dataset["train"]["images"][:, 0:1, :, :].astype(np.float32))
     train_labels = torch.from_numpy(
         dataset["train"]["labels"].astype(np.int64))
 
@@ -67,7 +81,7 @@ def load_scifar100_data(path, val_split=0.2, train=True):
 
     print(len(train_dataset))
     test_data = torch.from_numpy(
-        dataset["test"]["images"][:, :, :, :].astype(np.float32))
+            dataset["test"]["images"][:, 0:1, :, :].astype(np.float32))
     test_labels = torch.from_numpy(
         dataset["test"]["labels"].astype(np.int64))
 
@@ -80,7 +94,7 @@ def get_datasets(name, root, input_size, cutout=-1):
     assert len(input_size) in [3, 4]
     if len(input_size) == 4:
         input_size = input_size[1:]
-    assert input_size[1] == input_size[2]
+    #assert input_size[1] == input_size[2]
 
     if name == 'cifar10':
         mean = [x / 255 for x in [125.3, 123.0, 113.9]]
