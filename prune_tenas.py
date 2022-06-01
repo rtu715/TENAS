@@ -467,7 +467,7 @@ def main(xargs):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("TENAS")
     parser.add_argument('--data_path', type=str, help='Path to dataset')
-    parser.add_argument('--dataset', type=str, choices=['cifar10', 'cifar100', 'ImageNet16-120', 'imagenet-1k', 'ninapro', 'scifar100'], help='Choose between cifar10/100/ImageNet16-120/imagenet-1k')
+    parser.add_argument('--dataset', type=str, choices=['cifar10', 'cifar100', 'ImageNet16-120', 'imagenet-1k', 'ninapro', 'scifar100', 'darcyflow'], help='Choose between cifar10/100/ImageNet16-120/imagenet-1k')
     parser.add_argument('--search_space_name', type=str, default='nas-bench-201',  help='space of operator candidates: nas-bench-201 or darts.')
     parser.add_argument('--max_nodes', type=int, help='The maximum number of nodes.')
     parser.add_argument('--track_running_stats', type=int, choices=[0, 1], help='Whether use track_running_stats or not in the BN layer.')

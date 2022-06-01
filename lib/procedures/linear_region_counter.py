@@ -4,6 +4,8 @@ import pickle
 import os.path as osp
 import numpy as np
 import torch
+import scipy.io
+import h5py
 import torch.nn as nn
 import torch.utils.data as data_utils
 import torchvision.transforms as transforms
@@ -12,6 +14,98 @@ from pdb import set_trace as bp
 from datasets import CUTOUT, Dataset2Class, ImageNet16
 from operator import mul
 from functools import reduce
+
+# reading data
+class MatReader(object):
+    def __init__(self, file_path, to_torch=True, to_cuda=False, to_float=True):
+        super(MatReader, self).__init__()
+
+        self.to_torch = to_torch
+        self.to_cuda = to_cuda
+        self.to_float = to_float
+
+        self.file_path = file_path
+
+        self.data = None
+        self.old_mat = None
+        self._load_file()
+
+    def _load_file(self):
+        try:
+            self.data = scipy.io.loadmat(self.file_path)
+            self.old_mat = True
+        except:
+            self.data = h5py.File(self.file_path)
+            self.old_mat = False
+
+    def load_file(self, file_path):
+        self.file_path = file_path
+        self._load_file()
+
+    def read_field(self, field):
+        x = self.data[field]
+
+        if not self.old_mat:
+            x = x[()]
+            x = np.transpose(x, axes=range(len(x.shape) - 1, -1, -1))
+
+        if self.to_float:
+            x = x.astype(np.float32)
+
+        if self.to_torch:
+            x = torch.from_numpy(x)
+
+            if self.to_cuda:
+                x = x.cuda()
+
+        return x
+
+    def set_cuda(self, to_cuda):
+        self.to_cuda = to_cuda
+
+    def set_torch(self, to_torch):
+        self.to_torch = to_torch
+
+    def set_float(self, to_float):
+        self.to_float = to_float
+
+# normalization, pointwise gaussian
+class UnitGaussianNormalizer(object):
+    def __init__(self, x, eps=0.00001):
+        super(UnitGaussianNormalizer, self).__init__()
+
+        # x could be in shape of ntrain*n or ntrain*T*n or ntrain*n*T
+        self.mean = torch.mean(x, 0)
+        self.std = torch.std(x, 0)
+        self.eps = eps
+
+    def encode(self, x):
+        x = (x - self.mean) / (self.std + self.eps)
+        return x
+
+    def decode(self, x, sample_idx=None):
+        if sample_idx is None:
+            std = self.std + self.eps # n
+            mean = self.mean
+        else:
+            if len(self.mean.shape) == len(sample_idx[0].shape):
+                std = self.std[sample_idx] + self.eps  # batch*n
+                mean = self.mean[sample_idx]
+            if len(self.mean.shape) > len(sample_idx[0].shape):
+                std = self.std[:,sample_idx]+ self.eps # T*batch*n
+                mean = self.mean[:,sample_idx]
+
+        # x is in shape of batch*n or T*batch*n
+        x = (x * std) + mean
+        return x
+
+    def cuda(self):
+        self.mean = self.mean.cuda()
+        self.std = self.std.cuda()
+
+    def cpu(self):
+        self.mean = self.mean.cpu()
+        self.std = self.std.cpu()
 
 
 class RandChannel(object):
@@ -26,6 +120,19 @@ class RandChannel(object):
         channel = img.size(0)
         channel_choice = sorted(np.random.choice(list(range(channel)), size=self.num_channel, replace=False))
         return torch.index_select(img, 0, torch.Tensor(channel_choice).long())
+
+def create_grid(sub):
+    '''construct a grid for pde data'''
+    s = int(((421 - 1) / sub) + 1)
+    grids = []
+    grids.append(np.linspace(0, 1, s))
+    grids.append(np.linspace(0, 1, s))
+    grid = np.vstack([xx.ravel() for xx in np.meshgrid(*grids)]).T
+    grid = grid.reshape(1, s, s, 2)
+    grid = torch.tensor(grid, dtype=torch.float)
+
+    return grid, s
+
 
 def load_ninapro_data(path, train=True):
 
@@ -70,7 +177,7 @@ def load_scifar100_data(path, val_split=0.2, train=True):
 
 
     all_train_dataset = data_utils.TensorDataset(train_data, train_labels)
-    print(len(all_train_dataset))
+
     if val_split == 0.0 or not train:
         val_dataset = None
         train_dataset = all_train_dataset
@@ -89,6 +196,36 @@ def load_scifar100_data(path, val_split=0.2, train=True):
 
     return train_dataset, val_dataset, test_dataset
 
+def load_darcyflow_data(path):
+    TRAIN_PATH = os.path.join(path, 'piececonst_r421_N1024_smooth1.mat')
+    reader = MatReader(TRAIN_PATH)
+    r = 5
+    grid, s = create_grid(r)
+    ntrain = 1000
+    ntest = 100
+
+    x_train = reader.read_field('coeff')[:ntrain, ::r, ::r][:, :s, :s]
+    y_train = reader.read_field('sol')[:ntrain, ::r, ::r][:, :s, :s]
+
+    x_normalizer = UnitGaussianNormalizer(x_train)
+    x_train = x_normalizer.encode(x_train)
+
+    y_normalizer = UnitGaussianNormalizer(y_train)
+    y_train = y_normalizer.encode(y_train)
+
+    x_train = torch.cat([x_train.reshape(ntrain, s, s, 1), grid.repeat(ntrain, 1, 1, 1)], dim=3)
+    train_data = torch.utils.data.TensorDataset(x_train, y_train)
+
+    TEST_PATH = os.path.join(path, 'piececonst_r421_N1024_smooth2.mat')
+    reader = MatReader(TEST_PATH)
+    x_test = reader.read_field('coeff')[:ntest, ::r, ::r][:, :s, :s]
+    y_test = reader.read_field('sol')[:ntest, ::r, ::r][:, :s, :s]
+
+    x_test = x_normalizer.encode(x_test)
+    x_test = torch.cat([x_test.reshape(ntest, s, s, 1), grid.repeat(ntest, 1, 1, 1)], dim=3)
+    test_data = torch.utils.data.TensorDataset(x_test, y_test)
+
+    return train_data, test_data
 
 def get_datasets(name, root, input_size, cutout=-1):
     assert len(input_size) in [3, 4]
@@ -171,19 +308,17 @@ def get_datasets(name, root, input_size, cutout=-1):
         test_data  = ImageNet16(root, False, test_transform , 200)
         assert len(train_data) == 254775 and len(test_data) == 10000
     elif name == "ninapro":
-        #s3 = boto3.client("s3")
         path = os.path.join(root, 'ninapro_data')
-        #os.makedirs(path, exist_ok=True)
-        #download_from_s3(s3_bucket, name, path)
         train_data, _, test_data = load_ninapro_data(path, train=False)
         assert len(train_data) == 3297 and len(test_data) == 659  
     elif name == "scifar100":
-        #s3 = boto3.client("s3")
         path = os.path.join(root, 'scifar100_data')
-        #os.makedirs(path, exist_ok=True)
-        #download_from_s3(s3_bucket, name, path)
         train_data, _, test_data = load_scifar100_data(path, train=False)
         assert len(train_data) == 50000 and len(test_data) == 10000 
+    elif name == "darcyflow":
+        path = os.path.join(root, 'darcyflow_data')
+        train_data, test_data = load_darcyflow_data(path)
+        assert len(train_data) == 1000 and len(test_data) == 100 
     else: raise TypeError("Unknow dataset : {:}".format(name))
 
     class_num = Dataset2Class[name]

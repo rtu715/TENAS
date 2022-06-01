@@ -11,13 +11,14 @@ data_paths = {
     "imagenet-1k": "./imagenet_final",
     "ninapro": "./ninapro",
     "scifar100": "./scifar100"
+    "darcyflow": "./darcyflow"
 }
 
 
 parser = argparse.ArgumentParser("TENAS_launch")
 parser.add_argument('--gpu', default=0, type=int, help='use gpu with cuda number')
 parser.add_argument('--space', default='nas-bench-201', type=str, choices=['nas-bench-201', 'darts'], help='which nas search space to use')
-parser.add_argument('--dataset', default='cifar100', type=str, choices=['cifar10', 'cifar100', 'ImageNet16-120', 'imagenet-1k', 'ninapro', 'scifar100'], help='Choose between cifar10/100/ImageNet16-120/imagenet-1k')
+parser.add_argument('--dataset', default='cifar100', type=str, choices=['cifar10', 'cifar100', 'ImageNet16-120', 'imagenet-1k', 'ninapro', 'scifar100', 'darcyflow'], help='Choose between cifar10/100/ImageNet16-120/imagenet-1k')
 parser.add_argument('--seed', default=0, type=int, help='manual seed')
 args = parser.parse_args()
 
@@ -44,6 +45,9 @@ elif args.space == "darts":
     elif args.dataset == "imagenet-1k":
         prune_number = 2
         batch_size = 24
+    elif args.dataset == 'darcyflow':
+        prune_number = 3
+        batch_size = 4
     else: 
         prune_number = 3
         batch_size = 14
